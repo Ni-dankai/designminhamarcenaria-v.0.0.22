@@ -14,19 +14,27 @@ const RecursiveSpaceVisualizer = ({ space, selectedSpaceId, onSelectSpace, selec
   onSelectSpace?: (spaceId: string) => void;
   selectionMode: 'piece' | 'space';
 }) => {
-  if (!space.isActive && space.subSpaces?.length) {
-    return (
-      <>
-        {space.subSpaces.map(sub => (
-          <RecursiveSpaceVisualizer key={sub.id} space={sub} selectedSpaceId={selectedSpaceId} onSelectSpace={onSelectSpace} selectionMode={selectionMode} />
-        ))}
-      </>
-    );
-  }
+  // Se o espaço está ativo, ele deve ser renderizado para ser selecionável.
   if (space.isActive) {
     return <SingleSpaceVisualizer space={space} isSelected={selectedSpaceId === space.id} onSelect={onSelectSpace} selectionMode={selectionMode} />;
   }
-  return null;
+
+  // Se o espaço não está ativo, mas tem sub-espaços, renderize os filhos recursivamente.
+  if (space.subSpaces && space.subSpaces.length > 0) {
+    return (
+      <group>
+        {space.subSpaces.map(sub => (
+          <RecursiveSpaceVisualizer key={sub.id} space={sub} selectedSpaceId={selectedSpaceId} onSelectSpace={onSelectSpace} selectionMode={selectionMode} />
+        ))}
+      </group>
+    );
+  }
+
+  // ===================================================================
+  // CORREÇÃO: Em vez de retornar 'null', retornamos um grupo vazio.
+  // Isso garante que a cena 3D permaneça estável e evita o erro de raycast.
+  // ===================================================================
+  return <group />;
 };
 
 
@@ -36,10 +44,10 @@ interface Scene3DProps {
   textureUrl: string;
   selectedSpaceId?: string | null;
   onSelectSpace?: (spaceId: string) => void;
-  onPieceClick?: (piece: FurniturePiece) => void; // Renomeado e tipo atualizado
+  onPieceClick?: (piece: FurniturePiece) => void;
   hoveredPieceId?: string | null;
-  selectedPieceId?: string | null; // Adicionado
-  selectionMode?: 'piece' | 'space'; // Nova prop
+  selectedPieceId?: string | null;
+  selectionMode?: 'piece' | 'space';
 }
 
 export const Scene3D: React.FC<Scene3DProps> = ({ 
@@ -48,10 +56,10 @@ export const Scene3D: React.FC<Scene3DProps> = ({
   textureUrl, 
   selectedSpaceId, 
   onSelectSpace, 
-  onPieceClick, // Renomeado
+  onPieceClick,
   hoveredPieceId,
-  selectedPieceId, // Adicionado
-  selectionMode = 'piece' // Define um valor padrão
+  selectedPieceId,
+  selectionMode = 'piece'
 }) => {
   const gridYPosition = - (space.originalDimensions.height / 100) / 2 - 0.2;
   const [gridColors, setGridColors] = useState({ cell: '#e0e0e0', section: '#3b82f6' });
@@ -74,18 +82,10 @@ export const Scene3D: React.FC<Scene3DProps> = ({
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          outputEncoding: THREE.sRGBEncoding,
         }}
       >
         <Suspense fallback={null}> 
-          {/* =================================================================== */}
-          {/* CORREÇÃO: Iluminação ajustada para maior claridade e definição    */}
-          {/* =================================================================== */}
-          
-          {/* Luz ambiente mais forte para clarear a cena como um todo */}
           <ambientLight intensity={0.8} />
-          
-          {/* Luz principal (sol) mais intensa para destacar a textura */}
           <directionalLight 
               position={[5, 10, 8]} 
               intensity={1.5} 
@@ -93,8 +93,6 @@ export const Scene3D: React.FC<Scene3DProps> = ({
               shadow-mapSize-width={2048}
               shadow-mapSize-height={2048}
           />
-          
-          {/* Ambiente para reflexos, mantendo uma intensidade equilibrada */}
           <Environment preset="apartment" /> 
           
           <Grid 
@@ -115,7 +113,7 @@ export const Scene3D: React.FC<Scene3DProps> = ({
               onClick={() => onPieceClick && onPieceClick(piece)}
               isHovered={piece.id === hoveredPieceId}
               isSelected={piece.id === selectedPieceId}
-              selectionMode={selectionMode} // Passa a prop para o visualizador
+              selectionMode={selectionMode}
             />
           ))}
 

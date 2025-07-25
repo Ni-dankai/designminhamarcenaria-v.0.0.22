@@ -23,7 +23,7 @@ export const SingleSpaceVisualizer: React.FC<SingleSpaceVisualizerProps> = ({
                    currentDimensions.depth > 1;
 
   if (!hasSpace) {
-    return null;
+    return null; // Retorna null se o espaço for inválido
   }
 
   const color = isSelected ? '#ff6600' : '#3b82f6';
@@ -36,28 +36,24 @@ export const SingleSpaceVisualizer: React.FC<SingleSpaceVisualizerProps> = ({
       onSelect(space.id);
     }
   };
-
+  
+  // ===================================================================
+  // CORREÇÃO: Removido o <group> e a posição foi aplicada
+  // diretamente no <Box> para garantir que o objeto seja clicável.
+  // ===================================================================
   return (
-    <group position={[position.x / 100, position.y / 100, position.z / 100]}>
-      
-      <Box
-        args={[currentDimensions.width / 100, currentDimensions.height / 100, currentDimensions.depth / 100]}
-        onClick={handleClick}
-        raycast={selectionMode === 'space' ? undefined : () => null}
-      >
-        <meshStandardMaterial
-          color={color}
-          transparent
-          opacity={isSelected ? 0.35 : 0.15}
-          depthWrite={false}
-        />
-      </Box>
-
-      {/* =================================================================== */}
-      {/* CORREÇÃO: O bloco de código <Html> que renderizava a etiqueta     */}
-      {/* "Espaço Ativo" foi completamente removido.                        */}
-      {/* =================================================================== */}
-      
-    </group>
+    <Box
+      position={[position.x / 100, position.y / 100, position.z / 100]}
+      args={[currentDimensions.width / 100, currentDimensions.height / 100, currentDimensions.depth / 100]}
+      onClick={handleClick}
+      raycast={selectionMode === 'space' ? undefined : () => null}
+    >
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={isSelected ? 0.35 : 0.15}
+        depthWrite={false}
+      />
+    </Box>
   );
 };

@@ -127,11 +127,9 @@ const App = () => {
       />
 
       <SpaceSelector
-        activeSpaces={activeSpaces}
+        space={space} // <--- CORREÇÃO: Passa a árvore completa
         selectedSpaceId={selectedSpaceId}
         onSelectSpace={selectSpace}
-        mainSpaceId={space.id}
-        mainSpaceName={space.name}
       />
 
       <InstructionsPanel />

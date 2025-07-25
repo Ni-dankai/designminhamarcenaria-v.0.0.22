@@ -2,68 +2,65 @@ import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { PieceType, FurniturePiece } from '../types/furniture';
 
-// ALTERAÇÃO 1: Novas posições definidas para evitar sobreposição.
-type FloatingPanelPosition = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'topCenter' | 'topCenterBelow';
+// Seus Componentes Estilizados (Styled Components)
+// ToolbarContainer, ToolbarSection, ToolButton, etc.
 
-const PiecesList = styled.div`
-  max-height: 220px;
-  overflow-y: auto;
-  padding: var(--space-2);
-`;
-
-const FloatingPanel = styled.div<{ position: FloatingPanelPosition }>`
+const ToolbarContainer = styled.div`
   position: fixed;
-  z-index: 1000;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--color-toolbar-surface, #ffffffcc);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px);
   border-radius: var(--radius-xl, 12px);
   box-shadow: var(--shadow-xl);
   border: 1px solid var(--color-border, #e5e7eb);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
   padding: var(--space-3);
-  min-width: 180px;
-  ${(props) => {
-    switch (props.position) {
-      case 'topLeft': return 'top: 16px; left: 16px;';
-      case 'topRight': return 'top: 16px; right: 16px;';
-      case 'bottomLeft': return 'bottom: 16px; left: 16px;';
-      case 'bottomRight': return 'bottom: 16px; right: 16px;';
-      // ALTERAÇÃO 2: Posições centrais ajustadas para não conflitarem.
-      case 'topCenter': return 'top: 16px; left: 50%; transform: translateX(-50%);';
-      case 'topCenterBelow': return 'top: 90px; left: 50%; transform: translateX(-50%);';
-      default: return '';
-    }
-  }}
+  flex-wrap: wrap; /* Permite que os itens quebrem a linha */
+  justify-content: center;
+
+  /* =================================================================== */
+  /* CORREÇÃO: Delimitando a largura da Toolbar                          */
+  /* =================================================================== */
+  width: auto; /* A largura se ajusta ao conteúdo */
+  max-width: 1600px; /* Largura máxima para telas grandes */
+
+  @media (max-width: 1600px) {
+    max-width: 95vw; /* Em telas menores, ocupa 95% da largura */
+  }
 `;
 
 const ToolbarSection = styled.div`
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
   gap: var(--space-2);
-  padding: 8px 0 0 0;
-  margin: 0;
-  width: 100%;
-  border: none;
+  padding: 0 var(--space-3);
 
-  @media (max-width: 900px) {
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    padding: 4px 0 0 0;
+  &:not(:last-child) {
+    border-right: 1px solid var(--color-border);
+  }
+
+  @media (max-width: 1600px) {
+    border-right: none !important;
   }
 `;
 
 const SectionLabel = styled.span`
   font-size: var(--font-size-xs, 12px);
-  font-weight: 700;
-  color: var(--color-primary);
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7280);
   margin-right: var(--space-2);
-  min-width: 80px;
-  text-align: right;
 `;
 
 const ToolButton = styled.button`
-  padding: var(--space-2) var(--space-4);
+  /* =================================================================== */
+  /* CORREÇÃO: Aumentado o padding para dar mais respiro aos botões      */
+  /* =================================================================== */
+  padding: var(--space-2) var(--space-4); /* Antes: var(--space-2) var(--space-3) */
+  
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 6px);
   font-size: var(--font-size-sm, 14px);
@@ -75,7 +72,11 @@ const ToolButton = styled.button`
   align-items: center;
   gap: var(--space-2);
   transition: all 0.2s ease;
-  margin: var(--space-1) !important;
+
+  /* =================================================================== */
+  /* CORREÇÃO: Adicionado espaçamento vertical e horizontal (margem)     */
+  /* =================================================================== */
+  margin: var(--space-1) !important; /* Adiciona uma pequena margem em todos os lados */
 
   &:hover {
     border-color: var(--color-primary);
@@ -96,15 +97,21 @@ const DimensionGroup = styled.div`
 `;
 
 const DimensionInput = styled.input`
-  width: 60px;
+  width: 60px; /* Aumentado um pouco para melhor visualização */
   padding: var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-sm, 4px);
   font-size: var(--font-size-sm);
   text-align: center;
   background: var(--color-surface);
-  color: var(--color-text);
+  color: var(--color-text); /* Garante que a cor principal seja usada */
+  
+  /* =================================================================== */
+  /* CORREÇÃO: Aumenta o peso da fonte para dar mais destaque            */
+  /* =================================================================== */
   font-weight: 600;
+
+  /* Remove as setas de aumentar/diminuir (steppers) do input */
   -moz-appearance: textfield;
   &::-webkit-outer-spin-button,
   &::-webkit-inner-spin-button {
@@ -160,22 +167,14 @@ const DropdownHeader = styled.div`
   padding: var(--space-3) var(--space-4);
   background: var(--color-background-alt);
   font-weight: 600;
+  color: var(--color-text);
 `;
 
-interface ToolbarProps {
-  onAddPiece: (pieceType: PieceType) => void;
-  onClearAll: () => void;
-  pieces: FurniturePiece[];
-  onRemovePiece: (pieceId: string) => void;
-  originalDimensions: { width: number; height: number; depth: number };
-  onUpdateDimensions: (dimensions: { width: number; height: number; depth: number }) => void;
-  defaultThickness: number;
-  onThicknessChange: (thickness: number) => void;
-  availableTextures: { name: string; url: string; }[];
-  currentTexture: { url: string; };
-  onTextureChange: (texture: any) => void;
-  onHoverPiece?: (id: string | null) => void;
-}
+const PiecesList = styled.div`
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--space-2);
+`;
 
 const PieceItem = styled.div`
   display: flex;
@@ -215,7 +214,24 @@ const RemoveButton = styled.button`
   }
 `;
 
-const Toolbar: React.FC<ToolbarProps> = ({ 
+// ... Defina aqui os outros styled-components que você usa (Dropdown, PiecesList, etc)
+
+interface ToolbarProps {
+  onAddPiece: (pieceType: PieceType) => void;
+  onClearAll: () => void;
+  pieces: FurniturePiece[];
+  onRemovePiece: (pieceId: string) => void;
+  originalDimensions: { width: number; height: number; depth: number };
+  onUpdateDimensions: (dimensions: { width: number; height: number; depth: number }) => void;
+  defaultThickness: number;
+  onThicknessChange: (thickness: number) => void;
+  availableTextures: { name: string; url: string; }[];
+  currentTexture: { url: string; };
+  onTextureChange: (texture: any) => void;
+  onHoverPiece?: (id: string | null) => void;
+}
+
+export const Toolbar: React.FC<ToolbarProps> = ({ 
   onAddPiece,
   onClearAll,
   pieces,
@@ -252,27 +268,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   return (
-    <>
-      {/* Estrutura - topo esquerdo */}
-      <FloatingPanel position="topLeft">
-        <SectionLabel>Estrutura</SectionLabel>
-        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_LEFT)} title="Lateral Esquerda">L. Esq</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_RIGHT)} title="Lateral Direita">L. Dir</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.BOTTOM)} title="Base">Base</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.TOP)} title="Tampo">Tampo</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_BACK)} title="Costas">Costas</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_FRONT)} title="Peça Frontal">Frontal</ToolButton>
-      </FloatingPanel>
-
-      {/* Divisões - topo direito */}
-      <FloatingPanel position="topRight">
-        <SectionLabel>Divisões</SectionLabel>
-        <ToolButton onClick={() => onAddPiece(PieceType.SHELF)} title="Prateleira">Prateleira</ToolButton>
-        <ToolButton onClick={() => onAddPiece(PieceType.DIVIDER_VERTICAL)} title="Divisória Vertical">Divisória V.</ToolButton>
-      </FloatingPanel>
-
-      {/* ALTERAÇÃO 3: Usando a posição 'topCenter' para o painel de Dimensões. */}
-      <FloatingPanel position="topCenter">
+    <ToolbarContainer>
+      {/* ======================================================================= */}
+      {/* SEÇÕES RESTAURADAS */}
+      {/* ======================================================================= */}
+      <ToolbarSection>
+        <SectionLabel>Espessura</SectionLabel>
+        <DimensionGroup>
+          <DimensionInput
+            type="number"
+            value={defaultThickness}
+            onChange={(e) => onThicknessChange(Number(e.target.value))}
+          />
+          <span style={{color: 'var(--color-text-muted)', paddingRight: '4px'}}>mm</span>
+        </DimensionGroup>
+      </ToolbarSection>
+      
+      <ToolbarSection>
         <SectionLabel>Dimensões</SectionLabel>
         <DimensionGroup>
           <SectionLabel style={{marginLeft: '4px'}}>L</SectionLabel>
@@ -300,23 +312,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
         </DimensionGroup>
         <ToolButton onClick={handleApplyDimensions} title="Aplicar dimensões" disabled={!hasChanges}>✓</ToolButton>
         <ToolButton onClick={() => setTempDimensions(originalDimensions)} title="Resetar dimensões">↺</ToolButton>
-      </FloatingPanel>
+      </ToolbarSection>
 
-      {/* Espessura - canto inferior esquerdo */}
-      <FloatingPanel position="bottomLeft">
-        <SectionLabel>Espessura</SectionLabel>
-        <DimensionGroup>
-          <DimensionInput
-            type="number"
-            value={defaultThickness}
-            onChange={(e) => onThicknessChange(Number(e.target.value))}
-          />
-          <span style={{color: 'var(--color-text-muted)', paddingRight: '4px'}}>mm</span>
-        </DimensionGroup>
-      </FloatingPanel>
-
-      {/* Acabamento - canto inferior direito */}
-      <FloatingPanel position="bottomRight">
+      <ToolbarSection>
         <SectionLabel>Acabamento</SectionLabel>
         {availableTextures && availableTextures.map(texture => (
             <TextureSwatch
@@ -327,11 +325,32 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 title={texture.name}
             />
         ))}
-      </FloatingPanel>
+      </ToolbarSection>
 
-      {/* ALTERAÇÃO 4: Usando a posição 'topCenterBelow' para o painel Gerenciar. */}
-      <FloatingPanel position="topCenterBelow">
+      {/* Seções de Peças */}
+      <ToolbarSection>
+        <SectionLabel>Estrutura</SectionLabel>
+        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_LEFT)} title="Lateral Esquerda">L. Esq</ToolButton>
+        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_RIGHT)} title="Lateral Direita">L. Dir</ToolButton>
+        <ToolButton onClick={() => onAddPiece(PieceType.BOTTOM)} title="Base">Base</ToolButton>
+        <ToolButton onClick={() => onAddPiece(PieceType.TOP)} title="Tampo">Tampo</ToolButton>
+        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_BACK)} title="Costas">Costas</ToolButton>
+        {/* =================================================================== */}
+        {/* BOTÃO ADICIONADO: Peça Frontal                                      */}
+        {/* =================================================================== */}
+        <ToolButton onClick={() => onAddPiece(PieceType.LATERAL_FRONT)} title="Peça Frontal">Frontal</ToolButton>
+      </ToolbarSection>
+
+      <ToolbarSection>
+        <SectionLabel>Divisões</SectionLabel>
+        <ToolButton onClick={() => onAddPiece(PieceType.SHELF)} title="Prateleira">Prateleira</ToolButton>
+        <ToolButton onClick={() => onAddPiece(PieceType.DIVIDER_VERTICAL)} title="Divisória Vertical">Divisória V.</ToolButton>
+      </ToolbarSection>
+      
+      {/* Seção de Gerenciamento */}
+      <ToolbarSection>
         <SectionLabel>Gerenciar</SectionLabel>
+        {/* Container do Dropdown */}
         <div style={{position: 'relative'}} ref={dropdownRef}>
           <ToolButton 
             disabled={!pieces || pieces.length === 0}
@@ -349,16 +368,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   onMouseLeave={() => onHoverPiece && onHoverPiece(null)}
                 >
                   <PieceName>{piece.name}</PieceName>
-                  <RemoveButton onClick={() => onRemovePiece(piece.id)} title="Remover">✕</RemoveButton>
+                  <RemoveButton onClick={() => onRemovePiece(piece.id)} title={`Remover ${piece.name}`}>×</RemoveButton>
                 </PieceItem>
-              )) : <div style={{color: 'var(--color-text-muted)', padding: '8px'}}>Nenhuma peça adicionada</div>}
+              )) : <div style={{padding: '16px', color: 'var(--color-text-muted)'}}>Nenhuma peça.</div>}
             </PiecesList>
           </Dropdown>
         </div>
-        <ToolButton onClick={onClearAll} title="Limpar tudo">Limpar</ToolButton>
-      </FloatingPanel>
-    </>
+        <ToolButton onClick={onClearAll} disabled={!pieces || pieces.length === 0}>
+          Limpar
+        </ToolButton>
+      </ToolbarSection>
+    </ToolbarContainer>
   );
 };
-
-export { Toolbar };

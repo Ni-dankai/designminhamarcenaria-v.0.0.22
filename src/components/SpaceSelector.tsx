@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { FurnitureSpace } from '../types/furniture';
 
 const SpaceSelectorContainer = styled.div`
   position: fixed;
@@ -16,27 +17,6 @@ const SpaceSelectorContainer = styled.div`
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 320px);
-  transition: all 0.3s ease;
-
-  @media (max-width: 768px) {
-    width: auto; /* Largura automática para se ajustar ao conteúdo */
-    left: var(--space-3);
-    right: var(--space-3); /* Ocupa a largura da tela com margens */
-    top: 150px; /* Desce um pouco para não colar no toolbar */
-    max-height: 35vh; /* Altura máxima menor em celulares */
-    padding: var(--space-3);
-  }
-
-  /* Breakpoint extra para celulares pequenos */
-  @media (max-width: 480px) {
-    left: var(--space-1);
-    right: var(--space-1);
-    padding: var(--space-2);
-    top: 120px;
-    max-height: 30vh;
-    min-width: 0;
-    width: 98vw;
-  }
 `;
 
 const Title = styled.h3`
@@ -46,7 +26,6 @@ const Title = styled.h3`
   color: var(--color-text);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--color-border-light);
-  flex-shrink: 0; /* Impede que o título seja esmagado */
 `;
 
 const SpaceCount = styled.div`
@@ -55,35 +34,17 @@ const SpaceCount = styled.div`
   margin-bottom: var(--space-3);
   text-align: center;
   font-weight: 500;
-  flex-shrink: 0; /* Impede que o contador seja esmagado */
 `;
 
-// CORREÇÃO: Container para a lista com a funcionalidade de rolagem
 const SpaceList = styled.div`
-  overflow-y: auto; /* Adiciona a barra de rolagem vertical QUANDO NECESSÁRIO */
-  flex-grow: 1; /* Faz a lista ocupar o espaço restante */
-  padding-right: var(--space-2);
-  margin-right: -12px;
-
-  /* Estilização da barra de rolagem */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-text-muted);
-    border-radius: 3px;
-  }
-  &::-webkit-scrollbar-thumb:hover {
-    background-color: var(--color-primary);
-  }
+  overflow-y: auto;
+  flex-grow: 1;
 `;
 
-const SpaceButton = styled.button<{ $isSelected: boolean; }>`
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
+const SpaceButton = styled.button<{ $isSelected: boolean; $isActive: boolean; $level: number }>`
+  width: calc(100% - ${({ $level }) => $level * 16}px);
+  margin-left: ${({ $level }) => $level * 16}px;
+  padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-2);
   border: 1px solid;
   border-radius: var(--radius-md);
@@ -96,9 +57,13 @@ const SpaceButton = styled.button<{ $isSelected: boolean; }>`
   gap: var(--space-3);
   text-align: left;
   
-  background: ${({ $isSelected }) => $isSelected ? 'var(--color-primary)' : 'var(--color-surface)'};
+  background: ${({ $isSelected, $isActive }) => 
+    $isSelected ? 'var(--color-primary)' : 
+    $isActive ? 'var(--color-surface)' : 'var(--color-background)'
+  };
   color: ${({ $isSelected }) => $isSelected ? 'white' : 'var(--color-text)'};
   border-color: ${({ $isSelected }) => $isSelected ? 'var(--color-primary)' : 'var(--color-border)'};
+  opacity: ${({ $isActive }) => $isActive ? 1 : 0.6};
   
   &:hover {
     transform: translateY(-1px);
@@ -106,62 +71,55 @@ const SpaceButton = styled.button<{ $isSelected: boolean; }>`
     border-color: var(--color-primary);
   }
   
-  &:last-child {
-    margin-bottom: var(--space-1);
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 `;
 
-
-import { FurnitureSpace } from '../types/furniture';
-
 interface SpaceSelectorProps {
-  selectedSpaceId: string | null;
   space: FurnitureSpace;
-  onSelectSpace: (spaceId: string | null) => void;
+  selectedSpaceId: string | null;
+  onSelectSpace: (spaceId: string) => void;
 }
 
-
-// Função recursiva para renderizar a árvore de espaços
 const TreeNode: React.FC<{
-  node?: FurnitureSpace;
+  node: FurnitureSpace;
   selectedSpaceId: string | null;
   onSelect: (id: string) => void;
   level?: number;
 }> = ({ node, selectedSpaceId, onSelect, level = 0 }) => {
   const [expanded, setExpanded] = useState(true);
-  if (!node) return null;
   const hasChildren = Array.isArray(node.subSpaces) && node.subSpaces.length > 0;
 
   return (
-    <div style={{ marginLeft: level * 16 }}>
+    <div>
       <SpaceButton
         $isSelected={selectedSpaceId === node.id}
+        $isActive={!!node.isActive}
+        $level={level}
         onClick={() => onSelect(node.id)}
-        title={node.name}
-        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        disabled={!node.isActive}
+        title={node.isActive ? node.name : `${node.name} (Dividido)`}
       >
         {hasChildren && (
-          <span
-            style={{ cursor: 'pointer', marginRight: 4 }}
-            onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
-          >
+          <span style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}>
             {expanded ? '▼' : '▶'}
           </span>
         )}
-        {level === 0 ? '🏠' : '🔵'} {node.name}
+        {level === 0 ? '🏠' : (node.isActive ? '🔵' : '⚪️')} {node.name}
       </SpaceButton>
+
       {hasChildren && expanded && (
         <div>
-          {node.subSpaces && node.subSpaces.map(sub => (
-            sub ? (
-              <TreeNode
-                key={sub.id}
-                node={sub}
-                selectedSpaceId={selectedSpaceId}
-                onSelect={onSelect}
-                level={level + 1}
-              />
-            ) : null
+          {node.subSpaces?.map(sub => (
+            <TreeNode
+              key={sub.id}
+              node={sub}
+              selectedSpaceId={selectedSpaceId}
+              onSelect={onSelect}
+              level={level + 1}
+            />
           ))}
         </div>
       )}
@@ -170,24 +128,27 @@ const TreeNode: React.FC<{
 };
 
 export const SpaceSelector: React.FC<SpaceSelectorProps> = ({
-  selectedSpaceId,
   space,
+  selectedSpaceId,
   onSelectSpace,
 }) => {
-  // Função para contar todos os espaços disponíveis (folhas)
-  const countSpaces = (s?: FurnitureSpace | null): number => {
+  // CORREÇÃO: Função para contar apenas os espaços ativos (folhas da árvore)
+  const countActiveSpaces = (s: FurnitureSpace): number => {
     if (!s) return 0;
-    if (Array.isArray(s.subSpaces) && s.subSpaces.length > 0) {
-      return s.subSpaces.map(countSpaces).reduce((a, b) => a + b, 0);
+    if (s.isActive) return 1;
+    if (s.subSpaces && s.subSpaces.length > 0) {
+      return s.subSpaces.map(countActiveSpaces).reduce((a, b) => a + b, 0);
     }
-    return 1;
+    return 0;
   };
+  
+  const activeCount = countActiveSpaces(space);
 
   return (
     <SpaceSelectorContainer>
       <Title>🎯 Seleção de Espaços</Title>
       <SpaceCount>
-        {countSpaces(space)} espaço{countSpaces(space) !== 1 ? 's' : ''} disponível{countSpaces(space) !== 1 ? 'is' : ''}
+        {activeCount} espaço{activeCount !== 1 ? 's' : ''} disponível{activeCount !== 1 ? 'is' : ''}
       </SpaceCount>
       <SpaceList>
         <TreeNode

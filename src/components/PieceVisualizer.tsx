@@ -10,7 +10,7 @@ interface PieceVisualizerProps {
   isHovered: boolean;
   isSelected: boolean;
   onClick: () => void;
-  selectionMode: 'piece' | 'space'; // Adiciona a nova prop
+  selectionMode: 'piece' | 'space';
 }
 
 export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({ 
@@ -23,18 +23,14 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
 }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const { position, dimensions } = piece;
-
-  // CORREÇÃO: Carrega apenas a textura de cor principal
   const colorMap = useTexture(textureUrl);
 
   const materials = useMemo(() => {
     const textureScale = 500;
-
     const createMaterialForFace = (faceWidth: number, faceHeight: number) => {
       const colorMapClone = colorMap.clone();
       const textureAspect = colorMap.image.width / colorMap.image.height;
       let repeatU, repeatV;
-
       colorMapClone.wrapS = THREE.RepeatWrapping;
       colorMapClone.wrapT = THREE.RepeatWrapping;
       colorMapClone.center.set(0.5, 0.5);
@@ -52,7 +48,6 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
       
       return new THREE.MeshStandardMaterial({
         map: colorMapClone,
-        // A propriedade 'normalMap' foi removida
         color: "#cccccc",
         roughness: 0.9,
         metalness: 0.0,
@@ -65,30 +60,22 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
     const leftRightMat = createMaterialForFace(dimensions.depth, dimensions.height);
 
     return [leftRightMat, leftRightMat, topBottomMat, topBottomMat, frontBackMat, frontBackMat];
-
   }, [colorMap, dimensions]);
 
-  // O useEffect para o hover/seleção permanece o mesmo
   useEffect(() => {
     if (!meshRef.current || !meshRef.current.material) return;
     const currentMaterials = Array.isArray(meshRef.current.material) ? meshRef.current.material : [meshRef.current.material];
     
     currentMaterials.forEach(mat => {
       if (mat instanceof THREE.MeshStandardMaterial) {
-        // Aplica o brilho do hover, mas só se a peça não estiver selecionada
-        mat.emissive.set(isHovered && !isSelected ? '#fde047' : '#000000'); // Amarelo suave para hover
+        mat.emissive.set(isHovered && !isSelected ? '#fde047' : '#000000');
         mat.emissiveIntensity = isHovered && !isSelected ? 0.4 : 0;
       }
     });
   }, [isHovered, isSelected]);
 
-  // =====================================================================================
-  // CORREÇÃO: A lógica de verificação do modo de seleção foi movida para DENTRO do clique
-  // =====================================================================================
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
-    // Só executa a ação de clique se estiver no modo de seleção de peças
     if (selectionMode !== 'piece') return;
-
     event.stopPropagation();
     onClick();
   };
@@ -101,8 +88,12 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
     <mesh
       ref={meshRef}
       position={[position.x / 100, position.y / 100, position.z / 100]}
-      onClick={handleClick} // O handler de clique agora contém a lógica
-      // A prop 'raycast' foi removida, o objeto é sempre "visível" para o mouse
+      onClick={handleClick}
+      // ===================================================================
+      // CORREÇÃO CRÍTICA: Desativa a interação com a peça quando
+      // o modo de seleção de espaço está ativo.
+      // ===================================================================
+      raycast={selectionMode === 'piece' ? undefined : () => null}
       castShadow
       receiveShadow
       material={materials}
@@ -111,8 +102,7 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
       <Edges
         scale={1}
         threshold={15}
-        // CORREÇÃO: A cor e a espessura da borda agora dependem APENAS da seleção
-        color={isSelected ? '#f97316' : '#222222'} // Laranja para seleção
+        color={isSelected ? '#f97316' : '#222222'}
         linewidth={isSelected ? 2.5 : 1}
       />
     </mesh>
