@@ -31,7 +31,6 @@ export interface FurniturePiece {
   color: string;
   name: string;
   parentSpaceId?: string; // Adicionado para ancestralidade de subSpace
-  isVirtual?: boolean;
 }
 
 export interface FurnitureSpace {

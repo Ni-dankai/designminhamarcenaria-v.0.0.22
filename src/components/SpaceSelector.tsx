@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 const SpaceSelectorContainer = styled.div`
@@ -111,43 +111,91 @@ const SpaceButton = styled.button<{ $isSelected: boolean; }>`
   }
 `;
 
+
+import { FurnitureSpace } from '../types/furniture';
+
 interface SpaceSelectorProps {
-  activeSpaces: any[];
   selectedSpaceId: string | null;
+  space: FurnitureSpace;
   onSelectSpace: (spaceId: string | null) => void;
-  mainSpaceId: string;
-  mainSpaceName: string;
 }
 
-export const SpaceSelector: React.FC<SpaceSelectorProps> = ({ 
-  activeSpaces, 
-  selectedSpaceId, 
-  onSelectSpace, 
-  mainSpaceId,
-  mainSpaceName 
+
+// Função recursiva para renderizar a árvore de espaços
+const TreeNode: React.FC<{
+  node?: FurnitureSpace;
+  selectedSpaceId: string | null;
+  onSelect: (id: string) => void;
+  level?: number;
+}> = ({ node, selectedSpaceId, onSelect, level = 0 }) => {
+  const [expanded, setExpanded] = useState(true);
+  if (!node) return null;
+  const hasChildren = Array.isArray(node.subSpaces) && node.subSpaces.length > 0;
+
+  return (
+    <div style={{ marginLeft: level * 16 }}>
+      <SpaceButton
+        $isSelected={selectedSpaceId === node.id}
+        onClick={() => onSelect(node.id)}
+        title={node.name}
+        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+      >
+        {hasChildren && (
+          <span
+            style={{ cursor: 'pointer', marginRight: 4 }}
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+          >
+            {expanded ? '▼' : '▶'}
+          </span>
+        )}
+        {level === 0 ? '🏠' : '🔵'} {node.name}
+      </SpaceButton>
+      {hasChildren && expanded && (
+        <div>
+          {node.subSpaces && node.subSpaces.map(sub => (
+            sub ? (
+              <TreeNode
+                key={sub.id}
+                node={sub}
+                selectedSpaceId={selectedSpaceId}
+                onSelect={onSelect}
+                level={level + 1}
+              />
+            ) : null
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const SpaceSelector: React.FC<SpaceSelectorProps> = ({
+  selectedSpaceId,
+  space,
+  onSelectSpace,
 }) => {
-  // A lista de espaços a ser mostrada é sempre a lista de "activeSpaces" recebida.
-  const spacesToShow = activeSpaces || [];
+  // Função para contar todos os espaços disponíveis (folhas)
+  const countSpaces = (s?: FurnitureSpace | null): number => {
+    if (!s) return 0;
+    if (Array.isArray(s.subSpaces) && s.subSpaces.length > 0) {
+      return s.subSpaces.map(countSpaces).reduce((a, b) => a + b, 0);
+    }
+    return 1;
+  };
 
   return (
     <SpaceSelectorContainer>
       <Title>🎯 Seleção de Espaços</Title>
       <SpaceCount>
-        {spacesToShow.length} espaço{spacesToShow.length !== 1 ? 's' : ''} disponível{spacesToShow.length !== 1 ? 'is' : ''}
+        {countSpaces(space)} espaço{countSpaces(space) !== 1 ? 's' : ''} disponível{countSpaces(space) !== 1 ? 'is' : ''}
       </SpaceCount>
       <SpaceList>
-        {spacesToShow.map((space) => (
-          <SpaceButton
-            key={space.id}
-            $isSelected={selectedSpaceId === space.id}
-            onClick={() => onSelectSpace(space.id)}
-            title={space.name}
-          >
-            {/* O ícone agora é dinâmico, mostrando '🏠' apenas para o espaço raiz se ele estiver na lista de ativos */}
-            {space.id === 'main' ? '🏠' : '🔵'} {space.name}
-          </SpaceButton>
-        ))}
+        <TreeNode
+          node={space}
+          selectedSpaceId={selectedSpaceId}
+          onSelect={onSelectSpace}
+        />
       </SpaceList>
     </SpaceSelectorContainer>
   );
-}; 
+};

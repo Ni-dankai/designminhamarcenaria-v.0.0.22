@@ -92,12 +92,6 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
     event.stopPropagation();
     onClick();
   };
-  
-  // CORREÇÃO: Handlers criados via useMemo para evitar recriação desnecessária
-  const pieceEventHandlers = useMemo(
-    () => (selectionMode === 'piece' ? { onClick: handleClick } : {}),
-    [selectionMode, onClick]
-  );
 
   if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0 || dimensions.depth <= 0) {
     return null;
@@ -107,9 +101,7 @@ export const PieceVisualizer: React.FC<PieceVisualizerProps> = ({
     <mesh
       ref={meshRef}
       position={[position.x / 100, position.y / 100, position.z / 100]}
-      onClick={handleClick}
-      // A peça é sempre "clicável", mas a função handleClick decide se a ação ocorre
-      {...pieceEventHandlers} // Aplica os handlers de evento condicionalmente
+      onClick={handleClick} // O handler de clique agora contém a lógica
       // A prop 'raycast' foi removida, o objeto é sempre "visível" para o mouse
       castShadow
       receiveShadow

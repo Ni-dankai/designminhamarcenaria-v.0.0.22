@@ -4,23 +4,23 @@ import { FurnitureSpace, Dimensions, PieceType, FurniturePiece } from '../types/
 import { InsertionMode, InsertionContext } from '../types/insertion';
 import { SpaceCuttingSystem } from '../utils/spaceCutting';
 
-// Interface para as divisões manuais
-interface ManualDivision {
-  id: string;
-  parentSpaceId: string;
-  axis: 'x' | 'y';
-  value: number;
-  fromEnd: boolean;
-}
+// =====================================================================================
+// CORREÇÃO: "Carvalho" movido para a primeira posição da lista
+// =====================================================================================
+export const availableTextures = [
+    { name: 'Carvalho', url: '/textures/mdf-carvalho.jpg' },
+    { name: 'Branco TX', url: '/textures/mdf-branco.jpg' },
+    { name: 'Nogueira', url: '/textures/mdf-nogueira.jpg' },
+    { name: 'Cinza Sagrado', url: '/textures/mdf-cinza.jpg' },
+];
 
-// Configurações de Peças (pode ser mantido como estava)
 const PIECE_CONFIG: Record<string, { name: string; color: string }> = {
     [PieceType.LATERAL_LEFT]: { name: 'Lateral Esquerda', color: '#8b5cf6' },
     [PieceType.LATERAL_RIGHT]: { name: 'Lateral Direita', color: '#8b5cf6' },
+    [PieceType.LATERAL_FRONT]: { name: 'Lateral Frontal', color: '#f59e0b' },
+    [PieceType.LATERAL_BACK]: { name: 'Costas', color: '#facc15' },
     [PieceType.BOTTOM]: { name: 'Base', color: '#ef4444' },
     [PieceType.TOP]: { name: 'Tampo', color: '#ef4444' },
-    [PieceType.LATERAL_BACK]: { name: 'Costas', color: '#facc15' },
-    [PieceType.LATERAL_FRONT]: { name: 'Frontal', color: '#f59e0b' },
     [PieceType.SHELF]: { name: 'Prateleira', color: '#10b981' },
     [PieceType.DIVIDER_VERTICAL]: { name: 'Divisória Vertical', color: '#3b82f6' },
 };
@@ -28,25 +28,66 @@ const PIECE_CONFIG: Record<string, { name: string; color: string }> = {
 export const useSimplifiedFurnitureDesign = () => {
     const [defaultThickness, setDefaultThickness] = useState(18);
     const [allPieces, setAllPieces] = useState<FurniturePiece[]>([]);
-    const [manualDivisions, setManualDivisions] = useState<ManualDivision[]>([]);
     const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>('main');
     const [mainSpaceInfo, setMainSpaceInfo] = useState({
         id: 'main',
         name: 'Móvel Principal',
         originalDimensions: { width: 800, height: 2100, depth: 600 },
     });
-    // Definição das texturas disponíveis
-    const availableTextures = [
-        { name: 'Branco', url: '/public/textures/mdf-branco.jpg' },
-        { name: 'Carvalho', url: '/public/textures/mdf-carvalho.jpg' },
-        { name: 'Cinza', url: '/public/textures/mdf-cinza.jpg' },
-        { name: 'Nogueira', url: '/public/textures/mdf-nogueira.jpg' },
-    ];
+    const [insertionContext, setInsertionContext] = useState<InsertionContext>({ mode: InsertionMode.STRUCTURAL });
+
+    // NOVO: State para controlar a textura atual
     const [currentTexture, setCurrentTexture] = useState(availableTextures[0]);
-    // ... (outros states que você possa ter, como insertionContext, currentTexture, etc.)
 
     const memoizedState = useMemo(() => {
-        // 1. Espaço raiz
+        // Lista final de todas as peças com posições e dimensões corretas para renderizar
+        const positionedPieces: FurniturePiece[] = [];
+
+        // Função recursiva que constrói a árvore de espaços e posiciona as peças
+        const buildTree = (parentSpace: FurnitureSpace): FurnitureSpace => {
+            let currentVoid = { ...parentSpace };
+            
+            // Encontra todas as peças que são filhas diretas do espaço atual
+            const childPieces = allPieces.filter(p => p.parentSpaceId === parentSpace.id);
+
+            // Separa peças que cortam (estruturais) das que dividem (internas)
+            const cuttingPieces = childPieces.filter(p => ![PieceType.SHELF, PieceType.DIVIDER_VERTICAL].includes(p.type));
+            const dividingPieces = childPieces.filter(p => [PieceType.SHELF, PieceType.DIVIDER_VERTICAL].includes(p.type));
+
+            // 1. Aplica todas as peças que CORTAM o espaço atual
+            cuttingPieces.forEach(piece => {
+                const positioned = { ...piece,
+                    position: SpaceCuttingSystem.calculatePiecePosition(currentVoid, piece),
+                    dimensions: SpaceCuttingSystem.calculatePieceDimensions(currentVoid, piece.type, piece.thickness),
+                };
+                positionedPieces.push(positioned);
+                currentVoid = SpaceCuttingSystem.applyCutToSpace(currentVoid, piece);
+            });
+
+            // Se não houver peças que dividem, este é um espaço final (ativo)
+            if (dividingPieces.length === 0) {
+                return currentVoid;
+            }
+
+            // 2. Usa a primeira peça que DIVIDE para criar subespaços
+            dividingPieces.sort(a => a.type === PieceType.DIVIDER_VERTICAL ? -1 : 1); // Prioriza divisórias
+            const divider = dividingPieces[0];
+            
+            const positionedDivider = { ...divider,
+                position: SpaceCuttingSystem.calculatePiecePosition(currentVoid, divider),
+                dimensions: SpaceCuttingSystem.calculatePieceDimensions(currentVoid, divider.type, divider.thickness),
+            };
+            positionedPieces.push(positionedDivider);
+            
+            currentVoid.isActive = false;
+            const subSpaces = SpaceCuttingSystem.divideSpace(currentVoid, positionedDivider);
+            
+            // 3. Chamada recursiva para cada subespaço
+            currentVoid.subSpaces = subSpaces.map(sub => buildTree(sub));
+            
+            return currentVoid;
+        };
+
         const rootSpace: FurnitureSpace = {
             ...mainSpaceInfo,
             currentDimensions: mainSpaceInfo.originalDimensions,
@@ -54,127 +95,103 @@ export const useSimplifiedFurnitureDesign = () => {
             pieces: [], isActive: true,
         };
 
-        // 2. Processamento sequencial das peças (divisões por peça)
-        let spacesAfterPhysicalPieces: FurnitureSpace[] = [rootSpace];
-        let processablePieces = [...allPieces];
-        let positionedPieces: FurniturePiece[] = [];
-        let processedPieceIds = new Set<string>();
-        let changed = true;
-        while (changed && processablePieces.length > 0) {
-            changed = false;
-            const piece = processablePieces.find(p => spacesAfterPhysicalPieces.some(s => s.id === p.parentSpaceId));
-            if (piece) {
-                const parentIndex = spacesAfterPhysicalPieces.findIndex(s => s.id === piece.parentSpaceId);
-                const parentSpace = spacesAfterPhysicalPieces[parentIndex];
-                const positioned = { ...piece, position: SpaceCuttingSystem.calculatePiecePosition(parentSpace, piece), dimensions: SpaceCuttingSystem.calculatePieceDimensions(parentSpace, piece.type, piece.thickness) };
-                positionedPieces.push(positioned);
-                processedPieceIds.add(piece.id);
-                if ([PieceType.SHELF, PieceType.DIVIDER_VERTICAL].includes(piece.type)) {
-                    const newSubSpaces = SpaceCuttingSystem.divideSpace(parentSpace, positioned);
-                    spacesAfterPhysicalPieces.splice(parentIndex, 1, ...newSubSpaces);
-                } else {
-                    const newReducedSpace = SpaceCuttingSystem.applyCutToSpace(parentSpace, positioned);
-                    spacesAfterPhysicalPieces.splice(parentIndex, 1, newReducedSpace);
-                }
-                processablePieces = processablePieces.filter(p => p.id !== piece.id);
-                changed = true;
+        const spaceTree = buildTree(rootSpace);
+        
+        const collectActiveSpaces = (s: FurnitureSpace): FurnitureSpace[] => {
+            if (s.subSpaces && s.subSpaces.length > 0) {
+                return s.subSpaces.flatMap(collectActiveSpaces);
             }
-        }
+            return s.isActive ? [s] : [];
+        };
+        
+        return {
+            space: spaceTree,
+            activeSpaces: collectActiveSpaces(spaceTree),
+            positionedPieces,
+        };
+    }, [allPieces, mainSpaceInfo]);
 
-        // 3. Processamento das divisões manuais
-        let finalActiveSpaces = [...spacesAfterPhysicalPieces];
-        let divisionsToProcess = [...manualDivisions];
-        changed = true;
-        while(changed && divisionsToProcess.length > 0) {
-            changed = false;
-            const division = divisionsToProcess.find(d => finalActiveSpaces.some(s => s.id === d.parentSpaceId));
-            if (division) {
-                const parentIndex = finalActiveSpaces.findIndex(s => s.id === division.parentSpaceId);
-                if (parentIndex > -1) {
-                    const parentSpace = finalActiveSpaces[parentIndex];
-                    const newSubSpaces = SpaceCuttingSystem.divideSpaceByMeasurement(parentSpace, division.axis, division.value, division.fromEnd);
-                    if (newSubSpaces.length > 0) {
-                        finalActiveSpaces.splice(parentIndex, 1, ...newSubSpaces);
-                        divisionsToProcess = divisionsToProcess.filter(d => d.id !== division.id);
-                        changed = true;
-                    }
+    const getSelectedSpace = useCallback((): FurnitureSpace | null => {
+        const find = (s: FurnitureSpace, id: string): FurnitureSpace | null => {
+            if (s.id === id) return s;
+            if (s.subSpaces) {
+                for(const sub of s.subSpaces) {
+                    const found = find(sub, id);
+                    if (found) return found;
                 }
             }
+            return null;
         }
-
-        // 4. Para cada espaço folha manual, associe e posicione apenas peças ainda não processadas
-        const manualPositionedPieces: FurniturePiece[] = allPieces
-            .filter(piece => !processedPieceIds.has(piece.id) && finalActiveSpaces.some(s => s.id === piece.parentSpaceId))
-            .map(piece => {
-                const targetSpace = finalActiveSpaces.find(s => s.id === piece.parentSpaceId);
-                if (!targetSpace) return piece;
-                return {
-                    ...piece,
-                    position: SpaceCuttingSystem.calculatePiecePosition(targetSpace, piece),
-                    dimensions: SpaceCuttingSystem.calculatePieceDimensions(targetSpace, piece.type, piece.thickness)
-                };
-            });
-
-        // 5. Associe as peças aos espaços finais
-        const finalSpacesWithPieces = finalActiveSpaces.map(space => ({
-            ...space,
-            pieces: [...positionedPieces.filter(p => p.parentSpaceId === space.id), ...manualPositionedPieces.filter(p => p.parentSpaceId === space.id)]
-        }));
-
-        // 6. O espaço principal mantém as peças e subSpaces
-        const finalContainerSpace = { ...rootSpace, pieces: positionedPieces, subSpaces: finalSpacesWithPieces, isActive: allPieces.length === 0 && manualDivisions.length === 0 };
-        return { space: finalContainerSpace, activeSpaces: finalSpacesWithPieces, allPieces: [...positionedPieces, ...manualPositionedPieces] };
-    }, [allPieces, manualDivisions, mainSpaceInfo]);
-
-    const selectSpace = useCallback((spaceId: string | null) => { setSelectedSpaceId(spaceId); }, []);
+        return selectedSpaceId ? find(memoizedState.space, selectedSpaceId) : memoizedState.space;
+    }, [selectedSpaceId, memoizedState.space]);
 
     const addPiece = useCallback((pieceType: PieceType) => {
-        const targetSpace = memoizedState.activeSpaces.find(s => s.id === selectedSpaceId) || memoizedState.space;
+        const targetSpace = getSelectedSpace();
         if (!targetSpace) return;
+        
         const config = PIECE_CONFIG[pieceType];
-        const newPiece: FurniturePiece = { id: uuidv4(), type: pieceType, name: config.name, thickness: defaultThickness, color: config.color, position: targetSpace.position, dimensions: { width: 0, height: 0, depth: 0 }, parentSpaceId: targetSpace.id };
+        const newPiece: FurniturePiece = {
+            id: uuidv4(), type: pieceType, name: config.name,
+            thickness: defaultThickness, color: config.color,
+            position: targetSpace.position,
+            dimensions: { width: 0, height: 0, depth: 0 },
+            parentSpaceId: targetSpace.id,
+        };
         setAllPieces(prev => [...prev, newPiece]);
-    }, [selectedSpaceId, defaultThickness, memoizedState.activeSpaces, memoizedState.space]);
-    
-    const splitSpace = useCallback((spaceToSplitId: string, axis: 'x' | 'y', value: number, fromEnd: boolean) => {
-        const newDivision: ManualDivision = { id: uuidv4(), parentSpaceId: spaceToSplitId, axis, value, fromEnd };
-        setManualDivisions(prev => [...prev, newDivision]);
-    }, []);
+    }, [getSelectedSpace, defaultThickness]);
 
     const removePiece = useCallback((pieceId: string) => {
         setAllPieces(prev => {
             const pieceToRemove = prev.find(p => p.id === pieceId);
             if (!pieceToRemove) return prev;
             const parentIdOfRemoved = pieceToRemove.parentSpaceId;
-            return prev.filter(p => p.id !== pieceId).map(p => (p.parentSpaceId && p.parentSpaceId.includes(pieceToRemove.id)) ? { ...p, parentSpaceId: parentIdOfRemoved } : p);
+            return prev
+                .filter(p => p.id !== pieceId)
+                .map(p => {
+                    if (p.parentSpaceId && p.parentSpaceId.includes(pieceToRemove.id)) {
+                        return { ...p, parentSpaceId: parentIdOfRemoved };
+                    }
+                    return p;
+                });
         });
-        if (selectedSpaceId?.includes(pieceId)) setSelectedSpaceId('main');
+        if (selectedSpaceId && selectedSpaceId.includes(pieceId)) setSelectedSpaceId('main');
     }, [selectedSpaceId]);
+
+    // =====================================================================================
+    // CORREÇÃO: A função agora atualiza as dimensões sem apagar as peças.
+    // =====================================================================================
+    const updateDimensions = useCallback((newDimensions: Dimensions) => {
+        // A linha "setAllPieces([]);" foi removida.
+        
+        // Apenas atualizamos as dimensões originais do móvel.
+        setMainSpaceInfo(prev => ({ 
+            ...prev, 
+            originalDimensions: newDimensions 
+        }));
+        
+        // Resetamos a seleção para o espaço principal.
+        setSelectedSpaceId('main');
+    }, []);
 
     const clearAllPieces = useCallback(() => {
         setAllPieces([]);
-        setManualDivisions([]);
+        setSelectedSpaceId('main');
     }, []);
 
-    const updateDimensions = useCallback((newDimensions: Dimensions) => {
-        setMainSpaceInfo(prev => ({ ...prev, originalDimensions: newDimensions }));
-    }, []);
+    const setInsertionMode = useCallback((mode: InsertionMode) => { setInsertionContext({ mode }); }, []);
 
-    // Adicione aqui outros states e callbacks que você precisa retornar
-    return { 
-        ...memoizedState, 
-        selectSpace, 
-        addPiece, 
-        splitSpace, 
-        removePiece, 
-        clearAllPieces, 
-        updateDimensions, 
-        selectedSpaceId, 
-        availableTextures,
+    return {
+        space: memoizedState.space,
+        activeSpaces: memoizedState.activeSpaces,
+        allPieces: memoizedState.positionedPieces,
+        addPiece, removePiece, updateDimensions, clearAllPieces,
+        selectedSpaceId, selectSpace: setSelectedSpaceId,
+        insertionContext, setInsertionMode,
+        defaultThickness, setDefaultThickness,
+        // NOVO: propriedades para textura
         currentTexture,
         setCurrentTexture,
-        defaultThickness,
-        setDefaultThickness
+        availableTextures,
     };
 };
 

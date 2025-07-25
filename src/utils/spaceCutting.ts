@@ -1251,23 +1251,52 @@ export class SpaceCuttingSystem {
       // Dividir o espaço
       const newSubs = SpaceCuttingSystem.recalculateSubSpacesByPiece(currentSpace, piece);
       if (newSubs.length > 0) {
-        // 2. Distribuir as peças para os subSpaces corretos por interseção volumétrica
+        // 2. Distribuir as peças internas para os subSpaces corretos
         const subSpacesWithPieces = newSubs.map(sub => {
           const subBounds = SpaceCuttingSystem.calculateInternalSpaceBounds(sub);
           let piecesForSub = localOrderedPieces.filter(p => {
             if (p.id === piece.id) return false; // NÃO redistribuir a peça que causou o corte!
             const pos = p.position;
-            const dims = p.dimensions;
-            // Verifica se o volume da peça intercepta o volume do subespaço
-            return (
-              (pos.x + dims.width / 2) > subBounds.leftX &&
-              (pos.x - dims.width / 2) < subBounds.rightX &&
-              (pos.y + dims.height / 2) > subBounds.bottomY &&
-              (pos.y - dims.height / 2) < subBounds.topY &&
-              (pos.z + dims.depth / 2) > subBounds.frontZ &&
-              (pos.z - dims.depth / 2) < subBounds.backZ
-            );
+            if (p.type === PieceType.SHELF) {
+              if (typeof pos.y !== 'number') return false;
+              return pos.y >= subBounds.bottomY && pos.y <= subBounds.topY;
+            } else if (p.type === PieceType.DIVIDER_VERTICAL) {
+              if (typeof pos.x !== 'number') return false;
+              return pos.x >= subBounds.leftX && pos.x <= subBounds.rightX;
+            }
+            return false;
           });
+
+          // Fallback: garantir que nenhuma peça seja perdida (simplificado para evitar loops)
+          const idsDistribuidos = new Set(piecesForSub.map(p => p.id));
+          const aindaNaoDistribuidas = localOrderedPieces.filter(p =>
+            p.id !== piece.id && !idsDistribuidos.has(p.id)
+          );
+          
+          // Apenas adicionar peças que realmente pertencem a este subSpace
+          aindaNaoDistribuidas.forEach(p => {
+            const pos = p.position;
+            if (p.type === PieceType.SHELF && typeof pos.y === 'number') {
+              const posY = pos.y;
+              const centroSub = (subBounds.topY + subBounds.bottomY) / 2;
+              const dist = Math.abs(posY - centroSub);
+              // Só adicionar se estiver próximo do centro do subSpace
+              if (dist < (subBounds.topY - subBounds.bottomY) / 4) {
+                piecesForSub.push(p);
+                console.warn(`[FALLBACK] Peça ${p.id} (${p.type}) atribuída ao subSpace ${sub.id} por proximidade`);
+              }
+            } else if (p.type === PieceType.DIVIDER_VERTICAL && typeof pos.x === 'number') {
+              const posX = pos.x;
+              const centroSub = (subBounds.leftX + subBounds.rightX) / 2;
+              const dist = Math.abs(posX - centroSub);
+              // Só adicionar se estiver próximo do centro do subSpace
+              if (dist < (subBounds.rightX - subBounds.leftX) / 4) {
+                piecesForSub.push(p);
+                console.warn(`[FALLBACK] Peça ${p.id} (${p.type}) atribuída ao subSpace ${sub.id} por proximidade`);
+              }
+            }
+          });
+
           console.log(`[LOG] Peças para subSpace ${sub.id}:`, piecesForSub.map(pp => ({id: pp.id, type: pp.type, pos: pp.position})));
           return SpaceCuttingSystem.applyPiecesRecursively(sub, piecesForSub, defaultThickness);
         });
@@ -1368,77 +1397,5 @@ export class SpaceCuttingSystem {
       return rootSpace;
     }
     return search(rootSpace);
-  }
-
-  /**
-   * Divide um espaço com base em uma medida (largura ou altura)
-   * @param parentSpace - O espaço pai a ser dividido.
-   * @param axis - 'x' para divisão vertical, 'y' para divisão horizontal.
-   * @param splitValue - O valor da medida (largura ou altura) para dividir.
-   * @param fromEnd - Se a medida é a partir do final (direita ou topo).
-   * @returns Um array de espaços divididos.
-   */
-  static divideSpaceByMeasurement(parentSpace: FurnitureSpace, axis: 'x' | 'y', splitValue: number, fromEnd: boolean = false): FurnitureSpace[] {
-    const { currentDimensions: dims, position: pos, id: parentId, name: parentName } = parentSpace;
-
-    if (axis === 'y') { // Divisão Horizontal (Superior/Inferior)
-        let firstSpaceHeight = fromEnd ? dims.height - splitValue : splitValue;
-        let secondSpaceHeight = fromEnd ? splitValue : dims.height - splitValue;
-
-        if (firstSpaceHeight <= 0 || secondSpaceHeight <= 0) return [];
-
-        const firstSpace: FurnitureSpace = {
-            id: `${parentId}_h1_${Math.random().toString(36).substr(2, 6)}`,
-            name: `${parentName} Inferior`,
-            originalDimensions: { ...dims, height: firstSpaceHeight },
-            currentDimensions: { ...dims, height: firstSpaceHeight },
-            position: { ...pos, y: pos.y - (dims.height / 2) + (firstSpaceHeight / 2) },
-            pieces: [],
-            parentSpaceId: parentId,
-            isActive: true,
-        };
-        const secondSpace: FurnitureSpace = {
-            id: `${parentId}_h2_${Math.random().toString(36).substr(2, 6)}`,
-            name: `${parentName} Superior`,
-            originalDimensions: { ...dims, height: secondSpaceHeight },
-            currentDimensions: { ...dims, height: secondSpaceHeight },
-            position: { ...pos, y: firstSpace.position.y + (firstSpaceHeight / 2) + (secondSpaceHeight / 2) },
-            pieces: [],
-            parentSpaceId: parentId,
-            isActive: true,
-        };
-        return fromEnd ? [secondSpace, firstSpace] : [firstSpace, secondSpace];
-    }
-
-    if (axis === 'x') { // Divisão Vertical (Esquerda/Direita)
-        let firstSpaceWidth = fromEnd ? dims.width - splitValue : splitValue;
-        let secondSpaceWidth = fromEnd ? splitValue : dims.width - splitValue;
-
-        if (firstSpaceWidth <= 0 || secondSpaceWidth <= 0) return [];
-
-        const firstSpace: FurnitureSpace = {
-            id: `${parentId}_v1_${Math.random().toString(36).substr(2, 6)}`,
-            name: `${parentName} Esquerda`,
-            originalDimensions: { ...dims, width: firstSpaceWidth },
-            currentDimensions: { ...dims, width: firstSpaceWidth },
-            position: { ...pos, x: pos.x - (dims.width / 2) + (firstSpaceWidth / 2) },
-            pieces: [],
-            parentSpaceId: parentId,
-            isActive: true,
-        };
-        const secondSpace: FurnitureSpace = {
-            id: `${parentId}_v2_${Math.random().toString(36).substr(2, 6)}`,
-            name: `${parentName} Direita`,
-            originalDimensions: { ...dims, width: secondSpaceWidth },
-            currentDimensions: { ...dims, width: secondSpaceWidth },
-            position: { ...pos, x: firstSpace.position.x + (firstSpaceWidth / 2) + (secondSpaceWidth / 2) },
-            pieces: [],
-            parentSpaceId: parentId,
-            isActive: true,
-        };
-        return fromEnd ? [secondSpace, firstSpace] : [firstSpace, secondSpace];
-    }
-    
-    return [];
   }
 }

@@ -74,7 +74,7 @@ export const Scene3D: React.FC<Scene3DProps> = ({
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          outputColorSpace: THREE.SRGBColorSpace,
+          outputEncoding: THREE.sRGBEncoding,
         }}
       >
         <Suspense fallback={null}> 

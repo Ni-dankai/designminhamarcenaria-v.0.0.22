@@ -26,13 +26,11 @@ export const SingleSpaceVisualizer: React.FC<SingleSpaceVisualizerProps> = ({
     return null;
   }
 
-  // ===================================================================
-  // CORREÇÃO: A cor e a opacidade agora mudam com base em 'isSelected'
-  // ===================================================================
-  const color = isSelected ? '#ff6600' : '#3b82f6'; // Laranja vibrante para seleção
-  const opacity = isSelected ? 0.35 : 0.15; // Mais opaco quando selecionado
+  const color = isSelected ? '#ff6600' : '#3b82f6';
 
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    if (selectionMode !== 'space') return;
+    
     event.stopPropagation();
     if (onSelect) {
       onSelect(space.id);
@@ -42,30 +40,23 @@ export const SingleSpaceVisualizer: React.FC<SingleSpaceVisualizerProps> = ({
   return (
     <group position={[position.x / 100, position.y / 100, position.z / 100]}>
       
-      {/* Parte Visual */}
       <Box
         args={[currentDimensions.width / 100, currentDimensions.height / 100, currentDimensions.depth / 100]}
-        raycast={() => null} 
+        onClick={handleClick}
+        raycast={selectionMode === 'space' ? undefined : () => null}
       >
         <meshStandardMaterial
           color={color}
           transparent
-          opacity={opacity}
+          opacity={isSelected ? 0.35 : 0.15}
           depthWrite={false}
         />
       </Box>
 
-      {/* Parte Interativa (invisível e condicional) */}
-      {selectionMode === 'space' && (
-        <Box
-          args={[currentDimensions.width / 100, currentDimensions.height / 100, currentDimensions.depth / 100]}
-          onClick={handleClick}
-        >
-          <meshBasicMaterial visible={false} />
-        </Box>
-      )}
-      
-      {/* A etiqueta de informações (Html) foi removida, mas pode ser adicionada aqui se você quiser */}
+      {/* =================================================================== */}
+      {/* CORREÇÃO: O bloco de código <Html> que renderizava a etiqueta     */}
+      {/* "Espaço Ativo" foi completamente removido.                        */}
+      {/* =================================================================== */}
       
     </group>
   );
